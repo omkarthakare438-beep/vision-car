@@ -22,9 +22,23 @@ import {
   Tag,
   Palette,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  TrendingUp,
+  Activity,
+  CheckCircle,
+  IndianRupee
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 import { User, Car, Booking } from './types';
 
 // --- Components ---
@@ -117,8 +131,8 @@ const CarCard: React.FC<{ car: Car, onBook: (car: Car) => void }> = ({ car, onBo
           </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-black text-indigo-600 leading-none">${car.price}</p>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">per day</p>
+          <p className="text-2xl font-black text-indigo-600 leading-none">₹{car.price}</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">per hour</p>
         </div>
       </div>
       
@@ -188,6 +202,25 @@ export default function App() {
     }
     return sortableItems;
   }, [adminBookings, sortConfig]);
+
+  const adminStats = React.useMemo(() => {
+    const totalRevenue = adminBookings.reduce((sum, b) => sum + b.total_price, 0);
+    const totalBookings = adminBookings.length;
+    const availableCars = cars.filter(c => c.available === 1).length;
+    
+    const revenueByCarMap = new Map<string, number>();
+    adminBookings.forEach(b => {
+      const name = b.car_name || 'Unknown';
+      revenueByCarMap.set(name, (revenueByCarMap.get(name) || 0) + b.total_price);
+    });
+    
+    const chartData = Array.from(revenueByCarMap.entries()).map(([name, value]) => ({
+      name,
+      value
+    })).sort((a, b) => b.value - a.value).slice(0, 5);
+
+    return { totalRevenue, totalBookings, availableCars, chartData };
+  }, [adminBookings, cars]);
 
   const filteredAndSortedCars = React.useMemo(() => {
     let result = cars.filter(car => 
@@ -275,8 +308,8 @@ export default function App() {
     
     const start = new Date(bookingDates.start);
     const end = new Date(bookingDates.end);
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
-    const totalPrice = days * selectedCar.price;
+    const hours = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60)) || 1;
+    const totalPrice = hours * selectedCar.price;
 
     setLoading(true);
     try {
@@ -383,12 +416,12 @@ export default function App() {
               </div>
               <form onSubmit={(e) => handleAuth(e, 'login')} className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 ml-1">Email Address</label>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 ml-1">Username / Email</label>
                   <input 
-                    type="email" 
+                    type="text" 
                     required
                     className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 outline-none transition-all font-medium"
-                    placeholder="name@example.com"
+                    placeholder="Username or Email"
                     value={authForm.email}
                     onChange={e => setAuthForm({...authForm, email: e.target.value})}
                   />
@@ -527,8 +560,8 @@ export default function App() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Daily Rate ($)</label>
-                    <input name="price" type="number" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" placeholder="99" />
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Hourly Rate (₹)</label>
+                    <input name="price" type="number" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" placeholder="500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Image URL</label>
@@ -591,7 +624,7 @@ export default function App() {
                         <div className="flex items-center gap-8 pt-4 border-t border-slate-50">
                           <div className="flex flex-col">
                             <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Paid</span>
-                            <span className="text-xl font-black text-slate-900">${booking.total_price}</span>
+                            <span className="text-xl font-black text-slate-900">₹{booking.total_price}</span>
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Payment</span>
@@ -653,7 +686,7 @@ export default function App() {
                             <h3 className="font-black text-xl">{car.name}</h3>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{car.model} • {car.type}</p>
                           </div>
-                          <p className="text-xl font-black text-indigo-600">${car.price}</p>
+                          <p className="text-xl font-black text-indigo-600">₹{car.price}</p>
                         </div>
                         <div className="flex gap-2 mb-2">
                           <button 
@@ -699,6 +732,85 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100 flex items-center gap-6">
+                  <div className="bg-indigo-100 p-4 rounded-2xl">
+                    <TrendingUp className="w-8 h-8 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
+                    <p className="text-3xl font-black text-slate-900">₹{adminStats.totalRevenue.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100 flex items-center gap-6">
+                  <div className="bg-emerald-100 p-4 rounded-2xl">
+                    <Activity className="w-8 h-8 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Bookings</p>
+                    <p className="text-3xl font-black text-slate-900">{adminStats.totalBookings}</p>
+                  </div>
+                </div>
+                <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100 flex items-center gap-6">
+                  <div className="bg-amber-100 p-4 rounded-2xl">
+                    <CheckCircle className="w-8 h-8 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Available Fleet</p>
+                    <p className="text-3xl font-black text-slate-900">{adminStats.availableCars}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart Section */}
+              <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl shadow-slate-100">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-2xl font-black">Revenue by Vehicle (Top 5)</h2>
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                    Live Performance
+                  </div>
+                </div>
+                <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={adminStats.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
+                        dy={15}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
+                        tickFormatter={(value) => `₹${value}`}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ 
+                          borderRadius: '20px', 
+                          border: 'none', 
+                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                          padding: '16px 20px'
+                        }}
+                        itemStyle={{ fontWeight: 900, color: '#4f46e5' }}
+                        labelStyle={{ fontWeight: 900, marginBottom: '6px', fontSize: '14px' }}
+                        formatter={(value: any) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                      />
+                      <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={50}>
+                        {adminStats.chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                 <div className="lg:col-span-4 space-y-8">
                   <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl shadow-slate-100">
@@ -713,7 +825,7 @@ export default function App() {
                       <input name="model" placeholder="Model Name" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" />
                       <input name="color" placeholder="Color" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" />
                       <input name="type" placeholder="Category (SUV, Sport...)" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" />
-                      <input name="price" type="number" placeholder="Daily Rate" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" />
+                      <input name="price" type="number" placeholder="Daily Rate (₹)" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" />
                       <input name="image" placeholder="Image URL" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600" />
                       <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-sm hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200">
                         Add to Fleet
@@ -765,7 +877,7 @@ export default function App() {
                               <td className="px-8 py-6 font-bold text-slate-600 group-hover:text-slate-900">{b.user_email}</td>
                               <td className="px-8 py-6 font-bold">{b.car_name}</td>
                               <td className="px-8 py-6 text-slate-400 font-medium">{b.start_date}</td>
-                              <td className="px-8 py-6 font-black text-indigo-600">${b.total_price}</td>
+                              <td className="px-8 py-6 font-black text-indigo-600">₹{b.total_price}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -784,7 +896,7 @@ export default function App() {
                             <img src={car.image} className="w-14 h-14 rounded-2xl object-cover shadow-md" referrerPolicy="no-referrer" />
                             <div>
                               <p className="font-black text-sm text-slate-900 leading-none">{car.name}</p>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">${car.price} / day</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">₹{car.price} / hour</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -883,22 +995,22 @@ export default function App() {
                 <form onSubmit={handleBooking} className="space-y-8">
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 ml-1">Pick-up Date</label>
+                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 ml-1">Pick-up Date & Time</label>
                       <input 
-                        type="date" 
+                        type="datetime-local" 
                         required
-                        min={new Date().toISOString().split('T')[0]}
+                        min={new Date().toISOString().slice(0, 16)}
                         className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600"
                         value={bookingDates.start}
                         onChange={e => setBookingDates({...bookingDates, start: e.target.value})}
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 ml-1">Return Date</label>
+                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 ml-1">Return Date & Time</label>
                       <input 
-                        type="date" 
+                        type="datetime-local" 
                         required
-                        min={bookingDates.start || new Date().toISOString().split('T')[0]}
+                        min={bookingDates.start || new Date().toISOString().slice(0, 16)}
                         className="w-full px-6 py-4 rounded-2xl border border-slate-200 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600"
                         value={bookingDates.end}
                         onChange={e => setBookingDates({...bookingDates, end: e.target.value})}
@@ -913,7 +1025,7 @@ export default function App() {
                     <div>
                       <p className="text-xs font-bold text-slate-900 mb-1">Total Estimated Price</p>
                       <p className="text-2xl font-black text-indigo-600">
-                        ${(Math.ceil((new Date(bookingDates.end).getTime() - new Date(bookingDates.start).getTime()) / (1000 * 60 * 60 * 24)) || 1) * selectedCar.price}
+                        ₹{(Math.ceil((new Date(bookingDates.end).getTime() - new Date(bookingDates.start).getTime()) / (1000 * 60 * 60)) || 1) * selectedCar.price}
                       </p>
                     </div>
                   </div>

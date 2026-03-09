@@ -57,10 +57,19 @@ try {
 const carCount = db.prepare("SELECT COUNT(*) as count FROM cars").get() as { count: number };
 if (carCount.count === 0) {
   const insertCar = db.prepare("INSERT INTO cars (name, model, color, type, price, image) VALUES (?, ?, ?, ?, ?, ?)");
-  insertCar.run("Tesla", "Model 3", "Pearl White", "Electric", 120, "https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&q=80&w=800");
-  insertCar.run("BMW", "M4 Competition", "Frozen Blue", "Sport", 150, "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&q=80&w=800");
-  insertCar.run("Audi", "Q7 Quattro", "Mythos Black", "SUV", 130, "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=800");
-  insertCar.run("Mercedes", "C-Class AMG", "Iridium Silver", "Luxury", 140, "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("Tesla", "Model 3", "Pearl White", "Electric", 450, "https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("BMW", "M4 Competition", "Frozen Blue", "Sport", 550, "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("Audi", "Q7 Quattro", "Mythos Black", "SUV", 480, "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("Mercedes", "C-Class AMG", "Iridium Silver", "Luxury", 520, "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&q=80&w=800");
+} else {
+  // Update existing cars that are below 360 to be above 360 (e.g., multiply by 4 for hourly conversion)
+  db.prepare("UPDATE cars SET price = price * 4 WHERE price <= 360").run();
+}
+
+// Seed admin user
+const adminExists = db.prepare("SELECT * FROM users WHERE email = ?").get("visiondrive");
+if (!adminExists) {
+  db.prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)").run("visiondrive", "om1710", "admin");
 }
 
 async function startServer() {
