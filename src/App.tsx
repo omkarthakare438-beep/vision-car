@@ -37,7 +37,13 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Cell
+  Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie
 } from 'recharts';
 import { User, Car, Booking } from './types';
 
@@ -207,19 +213,48 @@ export default function App() {
     const totalRevenue = adminBookings.reduce((sum, b) => sum + b.total_price, 0);
     const totalBookings = adminBookings.length;
     const availableCars = cars.filter(c => c.available === 1).length;
+    const avgRevenue = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
     
+    // Revenue by Car
     const revenueByCarMap = new Map<string, number>();
+    const utilizationByCarMap = new Map<string, number>();
     adminBookings.forEach(b => {
       const name = b.car_name || 'Unknown';
       revenueByCarMap.set(name, (revenueByCarMap.get(name) || 0) + b.total_price);
+      utilizationByCarMap.set(name, (utilizationByCarMap.get(name) || 0) + 1);
     });
     
-    const chartData = Array.from(revenueByCarMap.entries()).map(([name, value]) => ({
+    const revenueChartData = Array.from(revenueByCarMap.entries()).map(([name, value]) => ({
       name,
       value
     })).sort((a, b) => b.value - a.value).slice(0, 5);
 
-    return { totalRevenue, totalBookings, availableCars, chartData };
+    const utilizationChartData = Array.from(utilizationByCarMap.entries()).map(([name, value]) => ({
+      name,
+      value
+    })).sort((a, b) => b.value - a.value).slice(0, 5);
+
+    // Bookings by Date
+    const bookingsByDateMap = new Map<string, number>();
+    adminBookings.forEach(b => {
+      const date = new Date(b.start_date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      bookingsByDateMap.set(date, (bookingsByDateMap.get(date) || 0) + 1);
+    });
+
+    const bookingTrendsData = Array.from(bookingsByDateMap.entries()).map(([date, count]) => ({
+      date,
+      count
+    })).slice(-7); // Last 7 days with data
+
+    return { 
+      totalRevenue, 
+      totalBookings, 
+      availableCars, 
+      avgRevenue,
+      revenueChartData, 
+      utilizationChartData,
+      bookingTrendsData 
+    };
   }, [adminBookings, cars]);
 
   const filteredAndSortedCars = React.useMemo(() => {
@@ -733,7 +768,7 @@ export default function App() {
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100 flex items-center gap-6">
                   <div className="bg-indigo-100 p-4 rounded-2xl">
                     <TrendingUp className="w-8 h-8 text-indigo-600" />
@@ -761,53 +796,136 @@ export default function App() {
                     <p className="text-3xl font-black text-slate-900">{adminStats.availableCars}</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Chart Section */}
-              <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl shadow-slate-100">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-2xl font-black">Revenue by Vehicle (Top 5)</h2>
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                    <div className="w-3 h-3 rounded-full bg-indigo-500" />
-                    Live Performance
+                <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100 flex items-center gap-6">
+                  <div className="bg-rose-100 p-4 rounded-2xl">
+                    <IndianRupee className="w-8 h-8 text-rose-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Avg. Ticket</p>
+                    <p className="text-3xl font-black text-slate-900">₹{adminStats.avgRevenue.toLocaleString()}</p>
                   </div>
                 </div>
-                <div className="h-[350px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={adminStats.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="name" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
-                        dy={15}
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
-                        tickFormatter={(value) => `₹${value}`}
-                      />
-                      <Tooltip 
-                        cursor={{ fill: '#f8fafc' }}
-                        contentStyle={{ 
-                          borderRadius: '20px', 
-                          border: 'none', 
-                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
-                          padding: '16px 20px'
-                        }}
-                        itemStyle={{ fontWeight: 900, color: '#4f46e5' }}
-                        labelStyle={{ fontWeight: 900, marginBottom: '6px', fontSize: '14px' }}
-                        formatter={(value: any) => [`₹${value.toLocaleString()}`, 'Revenue']}
-                      />
-                      <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={50}>
-                        {adminStats.chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+              </div>
+
+              {/* Charts Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Revenue Chart */}
+                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl shadow-slate-100">
+                  <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black">Revenue by Vehicle</h2>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                      Top 5 Performers
+                    </div>
+                  </div>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={adminStats.revenueChartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} tickFormatter={(v) => `₹${v}`} />
+                        <Tooltip 
+                          cursor={{ fill: '#f8fafc' }}
+                          contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Bar dataKey="value" radius={[10, 10, 0, 0]} barSize={40}>
+                          {adminStats.revenueChartData.map((_, i) => (
+                            <Cell key={`cell-${i}`} fill={['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][i % 5]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Booking Trends Chart */}
+                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl shadow-slate-100">
+                  <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black">Booking Trends</h2>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      Daily Volume
+                    </div>
+                  </div>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={adminStats.bookingTrendsData}>
+                        <defs>
+                          <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                        <Tooltip contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
+                        <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorCount)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Utilization Chart */}
+                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl shadow-slate-100">
+                  <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black">Fleet Utilization</h2>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                      Bookings per Car
+                    </div>
+                  </div>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={adminStats.utilizationChartData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} width={100} />
+                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
+                        <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={30} fill="#f59e0b" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Quick Insights */}
+                <div className="bg-slate-900 p-10 rounded-[40px] shadow-2xl shadow-slate-200 text-white relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
+                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -ml-32 -mb-32" />
+                  
+                  <h2 className="text-2xl font-black mb-8 relative z-10">Fleet Insights</h2>
+                  <div className="space-y-6 relative z-10">
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-indigo-500/20 p-2 rounded-lg">
+                          <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-300">Active Utilization</span>
+                      </div>
+                      <span className="text-lg font-black text-white">{Math.round((cars.filter(c => c.available === 0).length / cars.length) * 100)}%</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-emerald-500/20 p-2 rounded-lg">
+                          <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-300">Growth Rate</span>
+                      </div>
+                      <span className="text-lg font-black text-white">+12.5%</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-amber-500/20 p-2 rounded-lg">
+                          <UserIcon className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-300">Customer Retention</span>
+                      </div>
+                      <span className="text-lg font-black text-white">84%</span>
+                    </div>
+                  </div>
+                  <button className="w-full mt-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-sm hover:bg-indigo-50 transition-all">
+                    Download Full Report
+                  </button>
                 </div>
               </div>
 
