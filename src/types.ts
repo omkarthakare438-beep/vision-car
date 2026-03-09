@@ -7,10 +7,13 @@ export interface User {
 export interface Car {
   id: number;
   name: string;
+  model: string;
+  color: string;
   type: string;
   price: number;
   image: string;
   available: number;
+  owner_id: number | null;
 }
 
 export interface Booking {

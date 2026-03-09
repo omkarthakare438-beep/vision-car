@@ -21,10 +21,14 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS cars (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
+    model TEXT,
+    color TEXT,
     type TEXT,
     price INTEGER,
     image TEXT,
-    available INTEGER DEFAULT 1
+    available INTEGER DEFAULT 1,
+    owner_id INTEGER DEFAULT NULL,
+    FOREIGN KEY(owner_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS bookings (
@@ -40,14 +44,23 @@ db.exec(`
   );
 `);
 
+// Migration: Add columns if they don't exist (for existing databases)
+try {
+  db.prepare("SELECT model FROM cars LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE cars ADD COLUMN model TEXT");
+  db.exec("ALTER TABLE cars ADD COLUMN color TEXT");
+  db.exec("ALTER TABLE cars ADD COLUMN owner_id INTEGER DEFAULT NULL");
+}
+
 // Seed initial data if empty
 const carCount = db.prepare("SELECT COUNT(*) as count FROM cars").get() as { count: number };
 if (carCount.count === 0) {
-  const insertCar = db.prepare("INSERT INTO cars (name, type, price, image) VALUES (?, ?, ?, ?)");
-  insertCar.run("Tesla Model 3", "Electric", 120, "https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&q=80&w=800");
-  insertCar.run("BMW M4", "Sport", 150, "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&q=80&w=800");
-  insertCar.run("Audi Q7", "SUV", 130, "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=800");
-  insertCar.run("Mercedes C-Class", "Luxury", 140, "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&q=80&w=800");
+  const insertCar = db.prepare("INSERT INTO cars (name, model, color, type, price, image) VALUES (?, ?, ?, ?, ?, ?)");
+  insertCar.run("Tesla", "Model 3", "Pearl White", "Electric", 120, "https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("BMW", "M4 Competition", "Frozen Blue", "Sport", 150, "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("Audi", "Q7 Quattro", "Mythos Black", "SUV", 130, "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=800");
+  insertCar.run("Mercedes", "C-Class AMG", "Iridium Silver", "Luxury", 140, "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&q=80&w=800");
 }
 
 async function startServer() {
@@ -82,9 +95,21 @@ async function startServer() {
   });
 
   app.post("/api/cars", (req, res) => {
-    const { name, type, price, image } = req.body;
-    const info = db.prepare("INSERT INTO cars (name, type, price, image) VALUES (?, ?, ?, ?)").run(name, type, price, image);
-    res.json({ id: info.lastInsertRowid, name, type, price, image, available: 1 });
+    const { name, model, color, type, price, image, owner_id } = req.body;
+    const info = db.prepare("INSERT INTO cars (name, model, color, type, price, image, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(name, model, color, type, price, image, owner_id || null);
+    res.json({ id: info.lastInsertRowid, name, model, color, type, price, image, available: 1, owner_id });
+  });
+
+  app.get("/api/cars/owner/:userId", (req, res) => {
+    const cars = db.prepare("SELECT * FROM cars WHERE owner_id = ?").all(req.params.userId);
+    res.json(cars);
+  });
+
+  app.put("/api/cars/:id", (req, res) => {
+    const { name, model, color, type, price, image } = req.body;
+    db.prepare("UPDATE cars SET name = ?, model = ?, color = ?, type = ?, price = ?, image = ? WHERE id = ?")
+      .run(name, model, color, type, price, image, req.params.id);
+    res.json({ success: true });
   });
 
   app.delete("/api/cars/:id", (req, res) => {
